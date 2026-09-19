@@ -1,0 +1,1081 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>2048</title>
+<style>
+  :root {
+    --bg: #faf8ef;
+    --board-bg: #bbada0;
+    --cell-bg: rgba(238, 228, 218, 0.35);
+    --text-dark: #776e65;
+    --text-light: #f9f6f2;
+    --accent: #8f7a66;
+    --gold: #edc22e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #1a1816;
+      --board-bg: #2a2622;
+      --cell-bg: rgba(255,255,255,0.06);
+      --text-dark: #e8e3dc;
+      --text-light: #f9f6f2;
+      --accent: #6f6259;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #1a1816;
+    --board-bg: #2a2622;
+    --cell-bg: rgba(255,255,255,0.06);
+    --text-dark: #e8e3dc;
+    --text-light: #f9f6f2;
+    --accent: #6f6259;
+  }
+
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--bg);
+    color: var(--text-dark);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px 48px;
+    touch-action: none;
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 420px;
+    position: relative;
+  }
+
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: 2.4rem;
+    margin: 0;
+    font-weight: 800;
+    color: var(--text-dark);
+  }
+
+  .subtitle {
+    font-size: 0.85rem;
+    margin-top: 4px;
+    opacity: 0.75;
+  }
+
+  .scores {
+    display: flex;
+    gap: 8px;
+  }
+
+  .score-box {
+    background: var(--board-bg);
+    color: var(--text-light);
+    border-radius: 8px;
+    padding: 8px 14px;
+    text-align: center;
+    min-width: 64px;
+  }
+
+  .score-box .label {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    opacity: 0.8;
+    letter-spacing: 0.05em;
+  }
+
+  .score-box .value {
+    font-size: 1.2rem;
+    font-weight: 700;
+  }
+
+  .controls-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 14px;
+  }
+
+  .hint {
+    font-size: 0.8rem;
+    opacity: 0.7;
+  }
+
+  button.new-game {
+    background: var(--accent);
+    color: var(--text-light);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  button.new-game:active { transform: scale(0.97); }
+
+  .board-container {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    background: var(--board-bg);
+    border-radius: 10px;
+    padding: 10px;
+  }
+
+  .grid-bg {
+    position: absolute;
+    inset: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 3%;
+  }
+
+  .grid-cell {
+    background: var(--cell-bg);
+    border-radius: 6px;
+  }
+
+  .tiles-layer {
+    position: absolute;
+    inset: 10px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(4, 1fr);
+    gap: 3%;
+  }
+
+  .tile {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    font-weight: 800;
+    font-size: clamp(1rem, 6vw, 1.8rem);
+    color: var(--text-dark);
+    transition: top 0.1s ease-in-out, left 0.1s ease-in-out;
+    user-select: none;
+  }
+
+  .tile.new-tile { animation: pop 0.15s ease-in; }
+  .tile.merged-tile { animation: pop 0.15s ease-in; }
+
+  @keyframes pop {
+    0% { transform: scale(0.5); opacity: 0.6; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .tile[data-value="2"] { background: #eee4da; }
+  .tile[data-value="4"] { background: #ede0c8; }
+  .tile[data-value="8"] { background: #f2b179; color: var(--text-light); }
+  .tile[data-value="16"] { background: #f59563; color: var(--text-light); }
+  .tile[data-value="32"] { background: #f67c5f; color: var(--text-light); }
+  .tile[data-value="64"] { background: #f65e3b; color: var(--text-light); }
+  .tile[data-value="128"] { background: #edcf72; color: var(--text-light); font-size: clamp(0.9rem, 5vw, 1.5rem); }
+  .tile[data-value="256"] { background: #edcc61; color: var(--text-light); font-size: clamp(0.9rem, 5vw, 1.5rem); }
+  .tile[data-value="512"] { background: #edc850; color: var(--text-light); font-size: clamp(0.9rem, 5vw, 1.5rem); }
+  .tile[data-value="1024"] { background: #edc53f; color: var(--text-light); font-size: clamp(0.8rem, 4.5vw, 1.3rem); }
+  .tile[data-value="2048"] { background: #edc22e; color: var(--text-light); font-size: clamp(0.8rem, 4.5vw, 1.3rem); box-shadow: 0 0 20px rgba(237,194,46,0.8); }
+  .tile[data-value="4096"] { background: #3c3a32; color: #f9f6f2; font-size: clamp(0.75rem, 4vw, 1.2rem); box-shadow: 0 0 20px rgba(60,58,50,0.9); }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(250, 248, 239, 0.85);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    z-index: 10;
+    text-align: center;
+    padding: 20px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .overlay { background: rgba(26,24,22,0.9); }
+  }
+  :root[data-theme="dark"] .overlay { background: rgba(26,24,22,0.9); }
+
+  .overlay.show { display: flex; }
+
+  .overlay h2 {
+    font-size: 1.8rem;
+    color: var(--text-dark);
+    margin: 0 0 12px;
+  }
+
+  .overlay button {
+    background: var(--accent);
+    color: var(--text-light);
+    border: none;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-weight: 700;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  .footer-hint {
+    text-align: center;
+    margin-top: 16px;
+    font-size: 0.78rem;
+    opacity: 0.65;
+  }
+
+  /* ---- Achievement toast (top-right) ---- */
+  #toastStack {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 320px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: linear-gradient(135deg, #2f2a24, #4a4038);
+    color: #f9f6f2;
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    animation: toastIn 0.35s cubic-bezier(.34,1.56,.64,1) forwards;
+    border: 1px solid rgba(237,194,46,0.5);
+  }
+
+  .toast.hide {
+    animation: toastOut 0.3s ease-in forwards;
+  }
+
+  .toast .emoji {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+  }
+
+  .toast .body {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+  }
+
+  .toast .eyebrow {
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--gold);
+    font-weight: 700;
+  }
+
+  .toast .title {
+    font-size: 0.92rem;
+    font-weight: 700;
+  }
+
+  @keyframes toastIn {
+    0% { transform: translateX(120%); opacity: 0; }
+    100% { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes toastOut {
+    0% { transform: translateX(0); opacity: 1; }
+    100% { transform: translateX(120%); opacity: 0; }
+  }
+
+  /* ---- Achievements button (bottom-left, floating) ---- */
+  #achBtn {
+    position: fixed;
+    bottom: 14px;
+    left: 14px;
+    z-index: 900;
+    background: var(--board-bg);
+    color: var(--text-light);
+    border: none;
+    border-radius: 50%;
+    width: 76px;
+    height: 76px;
+    font-size: 2.1rem;
+    cursor: pointer;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  #achBtn:active { transform: scale(0.95); }
+
+  #achBadge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--gold);
+    color: #3c3a32;
+    font-size: 0.78rem;
+    font-weight: 800;
+    border-radius: 12px;
+    padding: 3px 8px;
+    min-width: 22px;
+    text-align: center;
+  }
+
+  /* ---- Achievements modal ---- */
+  #achModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.55);
+    z-index: 2000;
+    display: none;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #achModal.show { display: flex; }
+
+  @media (min-width: 480px) {
+    #achModal { align-items: center; }
+  }
+
+  .ach-panel {
+    background: var(--bg);
+    color: var(--text-dark);
+    width: 100%;
+    max-width: 440px;
+    max-height: 78vh;
+    border-radius: 16px 16px 0 0;
+    padding: 18px 18px 24px;
+    overflow-y: auto;
+    box-shadow: 0 -8px 30px rgba(0,0,0,0.3);
+  }
+  @media (min-width: 480px) {
+    .ach-panel { border-radius: 16px; max-height: 80vh; }
+  }
+
+  .ach-panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+
+  .ach-panel-header h2 {
+    margin: 0;
+    font-size: 1.3rem;
+  }
+
+  .ach-close {
+    background: none;
+    border: none;
+    font-size: 1.4rem;
+    cursor: pointer;
+    color: var(--text-dark);
+    padding: 4px 8px;
+  }
+
+  .ach-progress {
+    font-size: 0.8rem;
+    opacity: 0.7;
+    margin-bottom: 14px;
+  }
+
+  .ach-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .ach-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: var(--cell-bg);
+  }
+
+  .ach-item.locked { opacity: 0.45; }
+
+  .ach-item .emoji {
+    font-size: 1.6rem;
+    width: 34px;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .ach-item .info { display: flex; flex-direction: column; line-height: 1.3; flex: 1; }
+  .ach-item .a-title { font-weight: 700; font-size: 0.92rem; }
+  .ach-item .a-desc { font-size: 0.78rem; opacity: 0.8; }
+  .ach-item .a-date { font-size: 0.68rem; opacity: 0.6; margin-top: 2px; }
+
+  /* ---- Help button (top, next to controls) ---- */
+  #helpBtn {
+    background: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 50%;
+    width: 26px;
+    height: 26px;
+    font-size: 0.85rem;
+    font-weight: 800;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 8px;
+    flex-shrink: 0;
+  }
+
+  /* ---- Tutorial modal ---- */
+  #tutModal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 2100;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  #tutModal.show { display: flex; }
+
+  .tut-panel {
+    background: var(--bg);
+    color: var(--text-dark);
+    width: 100%;
+    max-width: 380px;
+    border-radius: 16px;
+    padding: 26px 22px 20px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+
+  .tut-icon {
+    font-size: 2.6rem;
+    margin-bottom: 10px;
+  }
+
+  .tut-title {
+    font-size: 1.15rem;
+    font-weight: 800;
+    margin-bottom: 8px;
+  }
+
+  .tut-desc {
+    font-size: 0.88rem;
+    line-height: 1.5;
+    opacity: 0.85;
+    min-height: 60px;
+  }
+
+  .tut-dots {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 16px 0;
+  }
+
+  .tut-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--cell-bg);
+    transition: background 0.2s, transform 0.2s;
+  }
+  .tut-dot.active {
+    background: var(--accent);
+    transform: scale(1.3);
+  }
+
+  .tut-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 6px;
+  }
+
+  .tut-actions button {
+    flex: 1;
+    border: none;
+    border-radius: 8px;
+    padding: 11px 10px;
+    font-weight: 700;
+    font-size: 0.88rem;
+    cursor: pointer;
+  }
+
+  .tut-skip {
+    background: var(--cell-bg);
+    color: var(--text-dark);
+  }
+
+  .tut-next {
+    background: var(--accent);
+    color: var(--text-light);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div>
+      <h1>2048</h1>
+      <div class="subtitle">타일을 합쳐서 2048을 만드세요!</div>
+    </div>
+    <div class="scores">
+      <div class="score-box">
+        <div class="label">점수</div>
+        <div class="value" id="score">0</div>
+      </div>
+      <div class="score-box">
+        <div class="label">최고</div>
+        <div class="value" id="best">0</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <div class="hint" style="display:flex;align-items:center;">방향키 또는 스와이프<button id="helpBtn" title="튜토리얼 다시보기">?</button></div>
+    <button class="new-game" id="newGameBtn">새 게임</button>
+  </div>
+
+  <div class="board-container" id="boardContainer">
+    <div class="grid-bg" id="gridBg"></div>
+    <div class="tiles-layer" id="tilesLayer"></div>
+    <div class="overlay" id="overlay">
+      <h2 id="overlayText">게임 종료!</h2>
+      <button id="overlayBtn">다시 시작</button>
+    </div>
+  </div>
+
+  <div class="footer-hint">기록은 이 브라우저에만 저장됩니다.</div>
+</div>
+
+<div id="toastStack"></div>
+
+<button id="achBtn" title="도전과제">🏆<span id="achBadge">0</span></button>
+
+<div id="achModal">
+  <div class="ach-panel">
+    <div class="ach-panel-header">
+      <h2>도전과제</h2>
+      <button class="ach-close" id="achClose">✕</button>
+    </div>
+    <div class="ach-progress" id="achProgress"></div>
+    <div class="ach-list" id="achList"></div>
+  </div>
+</div>
+
+<div id="tutModal">
+  <div class="tut-panel">
+    <div class="tut-icon" id="tutIcon">👋</div>
+    <div class="tut-title" id="tutTitle">2048에 오신 걸 환영합니다!</div>
+    <div class="tut-desc" id="tutDesc">같은 숫자의 타일을 합쳐서 더 큰 숫자를 만드는 퍼즐 게임이에요.</div>
+    <div class="tut-dots" id="tutDots"></div>
+    <div class="tut-actions">
+      <button class="tut-skip" id="tutSkip">건너뛰기</button>
+      <button class="tut-next" id="tutNext">다음</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const SIZE = 4;
+  let board = [];
+  let score = 0;
+  let best = 0;
+  let gameOver = false;
+  let won = false;
+  let continueAfterWin = false;
+  let moveCount = 0;
+
+  const tilesLayer = document.getElementById('tilesLayer');
+  const gridBg = document.getElementById('gridBg');
+  const scoreEl = document.getElementById('score');
+  const bestEl = document.getElementById('best');
+  const overlay = document.getElementById('overlay');
+  const overlayText = document.getElementById('overlayText');
+  const overlayBtn = document.getElementById('overlayBtn');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const boardContainer = document.getElementById('boardContainer');
+  const toastStack = document.getElementById('toastStack');
+  const achBtn = document.getElementById('achBtn');
+  const achBadge = document.getElementById('achBadge');
+  const achModal = document.getElementById('achModal');
+  const achClose = document.getElementById('achClose');
+  const achList = document.getElementById('achList');
+  const achProgress = document.getElementById('achProgress');
+
+  // build background grid cells
+  for (let i = 0; i < SIZE * SIZE; i++) {
+    const c = document.createElement('div');
+    c.className = 'grid-cell';
+    gridBg.appendChild(c);
+  }
+
+  /* ================= Achievements ================= */
+  const ACHIEVEMENTS = [
+    { id: 'tile_8',    title: '8 달성',        desc: '타일 8을 만들었습니다', emoji: '🔢' },
+    { id: 'tile_16',   title: '16 달성',       desc: '타일 16을 만들었습니다', emoji: '🔢' },
+    { id: 'tile_32',   title: '32 달성',       desc: '타일 32를 만들었습니다', emoji: '🔥' },
+    { id: 'tile_64',   title: '64 달성',       desc: '타일 64를 만들었습니다', emoji: '🔥' },
+    { id: 'tile_128',  title: '128 달성',      desc: '타일 128을 만들었습니다', emoji: '⭐' },
+    { id: 'tile_256',  title: '256 달성',      desc: '타일 256을 만들었습니다', emoji: '⭐' },
+    { id: 'tile_512',  title: '512 달성',      desc: '타일 512를 만들었습니다', emoji: '🌟' },
+    { id: 'tile_1024', title: '1024 달성',     desc: '타일 1024를 만들었습니다', emoji: '🌟' },
+    { id: 'tile_2048', title: '2048 클리어!',  desc: '전설의 2048 타일을 만들었습니다', emoji: '👑' },
+    { id: 'tile_4096', title: '한계 돌파',      desc: '4096 타일이라니, 실화인가요?', emoji: '🚀' },
+    { id: 'first_death', title: '첫 죽음',      desc: '처음으로 게임 오버를 경험했습니다', emoji: '💀' },
+    { id: 'first_win',   title: '첫 클리어',    desc: '처음으로 2048을 달성했습니다', emoji: '🏆' },
+    { id: 'score_5000',  title: '점수 사냥꾼',  desc: '한 게임에서 5,000점을 돌파했습니다', emoji: '💰' },
+    { id: 'score_10000', title: '점수 마스터',  desc: '한 게임에서 10,000점을 돌파했습니다', emoji: '💎' },
+    { id: 'score_20000', title: '전설의 점수',  desc: '한 게임에서 20,000점을 돌파했습니다', emoji: '✨' },
+    { id: 'combo_master', title: '콤보 마스터', desc: '한 번의 이동으로 타일을 3번 이상 합쳤습니다', emoji: '💥' },
+    { id: 'speedrun_128', title: '스피드러너',  desc: '50수 이내에 128을 달성했습니다', emoji: '⚡' },
+    { id: 'full_board_survive', title: '외줄타기', desc: '보드가 꽉 찬 상태에서 살아남았습니다', emoji: '😅' },
+    { id: 'games_5',  title: '단골손님',        desc: '5판을 플레이했습니다', emoji: '🎮' },
+    { id: 'games_20', title: '2048 중독',       desc: '20판을 플레이했습니다', emoji: '🎯' },
+  ];
+
+  let unlocked = {}; // id -> timestamp
+
+  function loadUnlocked() {
+    try {
+      const v = localStorage.getItem('game2048_achievements');
+      unlocked = v ? JSON.parse(v) : {};
+    } catch (e) { unlocked = {}; }
+  }
+
+  function saveUnlocked() {
+    try { localStorage.setItem('game2048_achievements', JSON.stringify(unlocked)); } catch (e) {}
+  }
+
+  function getGamesPlayed() {
+    try {
+      const v = localStorage.getItem('game2048_games_played');
+      return v ? parseInt(v, 10) : 0;
+    } catch (e) { return 0; }
+  }
+
+  function setGamesPlayed(n) {
+    try { localStorage.setItem('game2048_games_played', String(n)); } catch (e) {}
+  }
+
+  function unlockAchievement(id) {
+    if (unlocked[id]) return; // already unlocked
+    const def = ACHIEVEMENTS.find(a => a.id === id);
+    if (!def) return;
+    unlocked[id] = Date.now();
+    saveUnlocked();
+    showToast(def);
+    updateAchBadge();
+  }
+
+  function showToast(def) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.innerHTML =
+      '<div class="emoji">' + def.emoji + '</div>' +
+      '<div class="body">' +
+        '<div class="eyebrow">도전과제 달성!</div>' +
+        '<div class="title">' + def.title + '</div>' +
+      '</div>';
+    toastStack.appendChild(toast);
+    setTimeout(() => {
+      toast.classList.add('hide');
+      setTimeout(() => toast.remove(), 320);
+    }, 3200);
+  }
+
+  function updateAchBadge() {
+    const count = Object.keys(unlocked).length;
+    achBadge.textContent = count;
+  }
+
+  function renderAchModal() {
+    achList.innerHTML = '';
+    const count = Object.keys(unlocked).length;
+    achProgress.textContent = count + ' / ' + ACHIEVEMENTS.length + ' 달성';
+    const sorted = ACHIEVEMENTS.slice().sort((a, b) => {
+      const au = unlocked[a.id] ? 1 : 0;
+      const bu = unlocked[b.id] ? 1 : 0;
+      return bu - au;
+    });
+    sorted.forEach(def => {
+      const isUnlocked = !!unlocked[def.id];
+      const item = document.createElement('div');
+      item.className = 'ach-item' + (isUnlocked ? '' : ' locked');
+      let dateStr = '';
+      if (isUnlocked) {
+        const d = new Date(unlocked[def.id]);
+        dateStr = '<div class="a-date">' + d.toLocaleDateString('ko-KR') + ' 달성</div>';
+      }
+      item.innerHTML =
+        '<div class="emoji">' + (isUnlocked ? def.emoji : '🔒') + '</div>' +
+        '<div class="info">' +
+          '<div class="a-title">' + def.title + '</div>' +
+          '<div class="a-desc">' + (isUnlocked ? def.desc : '???') + '</div>' +
+          dateStr +
+        '</div>';
+      achList.appendChild(item);
+    });
+  }
+
+  achBtn.addEventListener('click', () => {
+    renderAchModal();
+    achModal.classList.add('show');
+  });
+  achClose.addEventListener('click', () => achModal.classList.remove('show'));
+  achModal.addEventListener('click', (e) => {
+    if (e.target === achModal) achModal.classList.remove('show');
+  });
+
+  /* ================= Game logic ================= */
+
+  function loadBest() {
+    try {
+      const v = localStorage.getItem('game2048_best');
+      best = v ? parseInt(v, 10) : 0;
+    } catch (e) { best = 0; }
+    bestEl.textContent = best;
+  }
+
+  function saveBest() {
+    try { localStorage.setItem('game2048_best', String(best)); } catch (e) {}
+  }
+
+  function emptyBoard() {
+    return Array.from({length: SIZE}, () => Array(SIZE).fill(0));
+  }
+
+  function getEmptyCells(b) {
+    const cells = [];
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (b[r][c] === 0) cells.push([r, c]);
+    return cells;
+  }
+
+  function addRandomTile(b) {
+    const empties = getEmptyCells(b);
+    if (empties.length === 0) return null;
+    const [r, c] = empties[Math.floor(Math.random() * empties.length)];
+    b[r][c] = Math.random() < 0.9 ? 2 : 4;
+    return [r, c];
+  }
+
+  function checkTileAchievements() {
+    let maxTile = 0;
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (board[r][c] > maxTile) maxTile = board[r][c];
+
+    const tileMap = { 8:'tile_8', 16:'tile_16', 32:'tile_32', 64:'tile_64',
+      128:'tile_128', 256:'tile_256', 512:'tile_512', 1024:'tile_1024',
+      2048:'tile_2048', 4096:'tile_4096' };
+
+    Object.keys(tileMap).forEach(v => {
+      const val = parseInt(v, 10);
+      if (maxTile >= val) unlockAchievement(tileMap[v]);
+    });
+
+    if (maxTile >= 128 && moveCount <= 50) unlockAchievement('speedrun_128');
+  }
+
+  function startGame(isFirstLoad) {
+    board = emptyBoard();
+    score = 0;
+    gameOver = false;
+    won = false;
+    continueAfterWin = false;
+    moveCount = 0;
+    overlay.classList.remove('show');
+    addRandomTile(board);
+    addRandomTile(board);
+    render(true);
+    updateScore();
+
+    if (!isFirstLoad) {
+      const played = getGamesPlayed() + 1;
+      setGamesPlayed(played);
+      if (played >= 5) unlockAchievement('games_5');
+      if (played >= 20) unlockAchievement('games_20');
+    }
+  }
+
+  function updateScore() {
+    scoreEl.textContent = score;
+    if (score > best) {
+      best = score;
+      bestEl.textContent = best;
+      saveBest();
+    }
+    if (score >= 5000) unlockAchievement('score_5000');
+    if (score >= 10000) unlockAchievement('score_10000');
+    if (score >= 20000) unlockAchievement('score_20000');
+  }
+
+  function cellRect() {
+    const containerSize = boardContainer.clientWidth - 20;
+    const gapPx = containerSize * 0.03;
+    const cellSize = (containerSize - gapPx * (SIZE - 1)) / SIZE;
+    return { cellSize, gapPx };
+  }
+
+  function render() {
+    tilesLayer.innerHTML = '';
+    const { cellSize, gapPx } = cellRect();
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const val = board[r][c];
+        if (val === 0) continue;
+        const tile = document.createElement('div');
+        tile.className = 'tile new-tile';
+        tile.setAttribute('data-value', val > 4096 ? '4096' : val);
+        tile.textContent = val;
+        tile.style.width = cellSize + 'px';
+        tile.style.height = cellSize + 'px';
+        tile.style.top = (r * (cellSize + gapPx)) + 'px';
+        tile.style.left = (c * (cellSize + gapPx)) + 'px';
+        tilesLayer.appendChild(tile);
+      }
+    }
+  }
+
+  function cloneBoard(b) {
+    return b.map(row => row.slice());
+  }
+
+  function boardsEqual(a, b) {
+    for (let r = 0; r < SIZE; r++)
+      for (let c = 0; c < SIZE; c++)
+        if (a[r][c] !== b[r][c]) return false;
+    return true;
+  }
+
+  function slideAndMergeLine(line) {
+    let filtered = line.filter(v => v !== 0);
+    let gained = 0;
+    let merges = 0;
+    for (let i = 0; i < filtered.length - 1; i++) {
+      if (filtered[i] === filtered[i + 1]) {
+        filtered[i] *= 2;
+        gained += filtered[i];
+        merges++;
+        if (filtered[i] === 2048) won = true;
+        filtered.splice(i + 1, 1);
+      }
+    }
+    while (filtered.length < SIZE) filtered.push(0);
+    return { line: filtered, gained, merges };
+  }
+
+  function move(direction) {
+    if (gameOver) return;
+    const prevBoard = cloneBoard(board);
+    let totalGained = 0;
+    let totalMerges = 0;
+
+    if (direction === 'left' || direction === 'right') {
+      for (let r = 0; r < SIZE; r++) {
+        let row = board[r].slice();
+        if (direction === 'right') row.reverse();
+        const { line, gained, merges } = slideAndMergeLine(row);
+        totalGained += gained;
+        totalMerges += merges;
+        board[r] = direction === 'right' ? line.slice().reverse() : line;
+      }
+    } else {
+      for (let c = 0; c < SIZE; c++) {
+        let col = [];
+        for (let r = 0; r < SIZE; r++) col.push(board[r][c]);
+        if (direction === 'down') col.reverse();
+        const { line, gained, merges } = slideAndMergeLine(col);
+        totalGained += gained;
+        totalMerges += merges;
+        const finalCol = direction === 'down' ? line.slice().reverse() : line;
+        for (let r = 0; r < SIZE; r++) board[r][c] = finalCol[r];
+      }
+    }
+
+    if (!boardsEqual(prevBoard, board)) {
+      moveCount++;
+      score += totalGained;
+      updateScore();
+      if (totalMerges >= 3) unlockAchievement('combo_master');
+      addRandomTile(board);
+      render();
+      checkTileAchievements();
+      checkGameState();
+    }
+  }
+
+  function canMove(b) {
+    if (getEmptyCells(b).length > 0) return true;
+    for (let r = 0; r < SIZE; r++) {
+      for (let c = 0; c < SIZE; c++) {
+        const v = b[r][c];
+        if (c < SIZE - 1 && b[r][c + 1] === v) return true;
+        if (r < SIZE - 1 && b[r + 1][c] === v) return true;
+      }
+    }
+    return false;
+  }
+
+  function checkGameState() {
+    const stillAlive = canMove(board);
+
+    if (getEmptyCells(board).length === 0 && stillAlive) {
+      unlockAchievement('full_board_survive');
+    }
+
+    if (won && !continueAfterWin) {
+      gameOver = true;
+      unlockAchievement('first_win');
+      overlayText.textContent = '축하합니다! 2048 달성! 🎉';
+      overlayBtn.textContent = '계속하기';
+      overlay.classList.add('show');
+      overlay.dataset.mode = 'won';
+      return;
+    }
+    if (!stillAlive) {
+      gameOver = true;
+      unlockAchievement('first_death');
+      overlayText.textContent = '게임 종료!';
+      overlayBtn.textContent = '다시 시작';
+      overlay.classList.add('show');
+      overlay.dataset.mode = 'lost';
+    }
+  }
+
+  overlayBtn.addEventListener('click', () => {
+    if (overlay.dataset.mode === 'won') {
+      continueAfterWin = true;
+      gameOver = false;
+      overlay.classList.remove('show');
+    } else {
+      startGame(false);
+    }
+  });
+
+  newGameBtn.addEventListener('click', () => startGame(false));
+
+  window.addEventListener('keydown', (e) => {
+    const map = {
+      ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down',
+      a: 'left', d: 'right', w: 'up', s: 'down'
+    };
+    if (map[e.key]) {
+      e.preventDefault();
+      move(map[e.key]);
+    }
+  });
+
+  let touchStartX = 0, touchStartY = 0;
+  boardContainer.addEventListener('touchstart', (e) => {
+    const t = e.changedTouches[0];
+    touchStartX = t.clientX;
+    touchStartY = t.clientY;
+  }, { passive: true });
+
+  boardContainer.addEventListener('touchend', (e) => {
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const absDx = Math.abs(dx), absDy = Math.abs(dy);
+    const threshold = 20;
+    if (Math.max(absDx, absDy) < threshold) return;
+    if (absDx > absDy) {
+      move(dx > 0 ? 'right' : 'left');
+    } else {
+      move(dy > 0 ? 'down' : 'up');
+    }
+  }, { passive: true });
+
+  window.addEventListener('resize', () => render());
+
+  /* ================= Tutorial ================= */
+  const TUT_STEPS = [
+    { icon: '👋', title: '2048에 오신 걸 환영합니다!', desc: '같은 숫자의 타일을 합쳐서 더 큰 숫자를 만드는 퍼즐 게임이에요.' },
+    { icon: '⬅️➡️', title: '타일 움직이기', desc: '방향키(↑↓←→)를 누르거나, 모바일에서는 화면을 스와이프해서 모든 타일을 한 방향으로 밀어요.' },
+    { icon: '🔗', title: '타일 합치기', desc: '같은 숫자의 타일 두 개가 부딪히면 하나로 합쳐지고, 숫자가 두 배가 돼요. 합칠 때마다 점수가 올라가요.' },
+    { icon: '👑', title: '목표는 2048!', desc: '타일을 계속 합쳐서 2048을 만들면 승리! 더 이상 움직일 칸이 없으면 게임 오버예요.' },
+    { icon: '🏆', title: '도전과제도 있어요', desc: '왼쪽 아래 트로피 버튼을 누르면 지금까지 달성한 도전과제를 확인할 수 있어요. 새로운 걸 달성하면 알림이 떠요!' }
+  ];
+  let tutIndex = 0;
+
+  const tutModal = document.getElementById('tutModal');
+  const tutIcon = document.getElementById('tutIcon');
+  const tutTitle = document.getElementById('tutTitle');
+  const tutDesc = document.getElementById('tutDesc');
+  const tutDots = document.getElementById('tutDots');
+  const tutNext = document.getElementById('tutNext');
+  const tutSkip = document.getElementById('tutSkip');
+  const helpBtn = document.getElementById('helpBtn');
+
+  TUT_STEPS.forEach((_, i) => {
+    const dot = document.createElement('div');
+    dot.className = 'tut-dot' + (i === 0 ? ' active' : '');
+    tutDots.appendChild(dot);
+  });
+
+  function renderTutStep() {
+    const step = TUT_STEPS[tutIndex];
+    tutIcon.textContent = step.icon;
+    tutTitle.textContent = step.title;
+    tutDesc.textContent = step.desc;
+    Array.from(tutDots.children).forEach((d, i) => {
+      d.classList.toggle('active', i === tutIndex);
+    });
+    tutNext.textContent = tutIndex === TUT_STEPS.length - 1 ? '시작하기!' : '다음';
+  }
+
+  function openTutorial() {
+    tutIndex = 0;
+    renderTutStep();
+    tutModal.classList.add('show');
+  }
+
+  function closeTutorial() {
+    tutModal.classList.remove('show');
+    try { localStorage.setItem('game2048_tutorial_seen', '1'); } catch (e) {}
+  }
+
+  tutNext.addEventListener('click', () => {
+    if (tutIndex < TUT_STEPS.length - 1) {
+      tutIndex++;
+      renderTutStep();
+    } else {
+      closeTutorial();
+    }
+  });
+  tutSkip.addEventListener('click', closeTutorial);
+  helpBtn.addEventListener('click', openTutorial);
+
+  function hasSeenTutorial() {
+    try { return localStorage.getItem('game2048_tutorial_seen') === '1'; } catch (e) { return true; }
+  }
+
+  loadBest();
+  loadUnlocked();
+  updateAchBadge();
+  startGame(true);
+
+  if (!hasSeenTutorial()) {
+    openTutorial();
+  }
+})();
+</script>
+</body>
+</html>
